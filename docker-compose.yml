@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  postgres_staging:
+    image: postgres:15-alpine
+    container_name: pg_staging
+    environment:
+      POSTGRES_USER: staging_user
+      POSTGRES_PASSWORD: staging_pass
+      POSTGRES_DB: staging_db
+    ports:
+      - "5433:5432" # Host 5433 -> Container 5432
+    volumes:
+      - pg_staging_data:/var/lib/postgresql/data
+    networks:
+      - pipeline_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U staging_user -d staging_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres_fact:
+    image: postgres:15-alpine
+    container_name: pg_fact
+    environment:
+      POSTGRES_USER: fact_user
+      POSTGRES_PASSWORD: fact_pass
+      POSTGRES_DB: fact_db
+    ports:
+      - "5434:5432" # Host 5434 -> Container 5432
+    volumes:
+      - pg_fact_data:/var/lib/postgresql/data
+    networks:
+      - pipeline_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fact_user -d fact_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache
+    command: redis-server --requirepass redis_pass
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - pipeline_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_pass", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.3
+    container_name: kafka_broker
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - pipeline_net
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  api:
+    build: ./api
+    container_name: pipeline_api
+    ports:
+      - "8000:8000"
+    networks:
+      - pipeline_net
+    depends_on:
+      postgres_staging:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  consumer:
+    build: ./consumer
+    container_name: pipeline_consumer
+    networks:
+      - pipeline_net
+    depends_on:
+      postgres_fact:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+volumes:
+  pg_staging_data:
+  pg_fact_data:
+  redis_data:
+  kafka_data:
+
+networks:
+  pipeline_net:
+    driver: bridge
