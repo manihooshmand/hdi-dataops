@@ -20,18 +20,16 @@ def startup():
 
 @app.post("/upload-csv/", response_model=UploadResponse)
 async def upload_csv(file: UploadFile = File(...), db: Session = Depends(get_staging_db)):
-    # Read file content and generate hash for cache check
-    contents = await file.read()
-    file_hash = hashlib.md5(contents).hexdigest()
-    
-    # Return cached response if exists
-    cached = get_cached_file(file_hash)
-    if cached:
-        return UploadResponse(**cached)
-    
     try:
-        # Read CSV, handle BOM if exists
-        df = pd.read_csv(io.StringIO(contents.decode('utf-8-sig')))
+        contents = await file.read()
+        file_hash = hashlib.md5(contents).hexdigest()
+        
+        cached = get_cached_file(file_hash)
+        if cached:
+            return UploadResponse(**cached)
+        
+        contents_str = contents.decode('utf-8-sig')
+        df = pd.read_csv(io.StringIO(contents_str))
         
         # 1. Load into Staging DB
         for _, row in df.iterrows():
