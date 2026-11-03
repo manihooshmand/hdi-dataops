@@ -9,7 +9,7 @@ The project has two parts:
 
 | Layer        | Technology                          |
 |--------------|-------------------------------------|
-| API          | FastAPI, Uvicorn, Pandas            |
+| API          | FastAPI, Python                     |
 | Streaming    | Apache Kafka (KRaft mode)           |
 | Databases    | PostgreSQL 15 (Staging & Fact)      |
 | Cache        | Redis 7                             |
