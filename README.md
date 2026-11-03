@@ -14,7 +14,7 @@ The project has two parts:
 | Databases    | PostgreSQL 15 (Staging & Fact)      |
 | Cache        | Redis 7                             |
 | Analysis     | Jupyter Notebook, Pandas, Matplotlib|
-| Containerization | Docker, Docker Compose          |
+| Containerization | Docker                          |
 
 ---
 
